@@ -1,0 +1,66 @@
+#In this workflow, we will expose service container to host port and run test job inside runner machine.
+# It shows communication from runner machine to service container, that is, from test job to mongodb service container.
+name: Deployment (Container)
+on:
+  push:
+    branches:
+      - main
+      - dev
+env:
+  CACHE_KEY: node-deps
+  MONGODB_DB_NAME: gha-demo
+jobs:
+  test:
+    environment: testing
+    runs-on: ubuntu-latest
+    env:
+      MONGODB_CONNECTION_PROTOCOL: mongodb #This is same as name defined in services.
+      MONGODB_CLUSTER_ADDRESS: 127.0.0.1:27017 #Since mongodb is exposed on 27017 host port, we are able to access service container on local host(runner's machine)
+      MONGODB_USERNAME: root
+      MONGODB_PASSWORD: example
+      PORT: 8080
+
+   # container: node:16 # We can write image name just like this if no other configuration is required.
+    container: #Instead of runner environment, job and its steps will run in containerized environment. This container is specific to job inside which it is defined. Steps and Job will not have access to runner machine as those run inside the container. Container is hosted on the runner machine.
+      image: node:16
+      # env: #These environment variables are specific to image, these are different than mentioned in the job as those are used by job and the steps.
+      #   env_name: env_value 
+
+    services: #A services container is an additional Docker container that runs alongside your job’s main container or runner. It provides external services your workflow needs—like databases, message queues, or caches—during the job. The service runs only for the duration of the job and is removed afterward.
+        mongodb: #This name could be anything.
+            image: mongo
+            env: #These envs are specific to mongo image and are used to initialize the mongodb database. For steps and 'test' job to be able to connect to mongodb db; job specific environment variables should have same username and password as defined here.
+                MONGO_INITDB_ROOT_USERNAME: root
+                MONGO_INITDB_ROOT_PASSWORD: example
+            ports:
+                - 27017:27017 #container port: host port
+        # some-other-service: You can define more than one service containers inside the services and this belongs to one job, here it is 'test'
+       
+    steps:
+      - name: Get Code
+        uses: actions/checkout@v3
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.npm
+          key: ${{ env.CACHE_KEY }}-${{ hashFiles('**/package-lock.json') }}
+      - name: Install dependencies
+        run: npm ci
+      - name: Run server
+        run: npm start & npx wait-on http://127.0.0.1:$PORT # requires MongoDB Atlas to accept requests from anywhere!
+      - name: Run tests
+        run: npm test
+      - name: Output information
+        run: |
+          echo "MONGODB_USERNAME: $MONGODB_USERNAME"
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Output information
+        env:
+          PORT: 3000
+        run: |        
+          echo "MONGODB_DB_NAME: $MONGODB_DB_NAME"
+          echo "MONGODB_USERNAME: $MONGODB_USERNAME"
+          echo "${{ env.PORT }}"
