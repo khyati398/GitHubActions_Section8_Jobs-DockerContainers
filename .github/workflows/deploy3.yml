@@ -20,12 +20,6 @@ jobs:
       MONGODB_PASSWORD: example
       PORT: 8080
 
-   # container: node:16 # We can write image name just like this if no other configuration is required.
-    container: #Instead of runner environment, job and its steps will run in containerized environment. This container is specific to job inside which it is defined. Steps and Job will not have access to runner machine as those run inside the container. Container is hosted on the runner machine.
-      image: node:16
-      # env: #These environment variables are specific to image, these are different than mentioned in the job as those are used by job and the steps.
-      #   env_name: env_value 
-
     services: #A services container is an additional Docker container that runs alongside your job’s main container or runner. It provides external services your workflow needs—like databases, message queues, or caches—during the job. The service runs only for the duration of the job and is removed afterward.
         mongodb: #This name could be anything.
             image: mongo
